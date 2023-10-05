@@ -181,9 +181,7 @@ func Test_GenerateMIDIWorkflow_EdgeCases(t *testing.T) {
 }
 
 // mock activity implementations
-func SendMIDITextRequest(prompt string) (string, error) {
-	return "Mocked MIDIText", nil
-}
+
 func ValidateMIDIText(midiText string) (bool, error) {
 	return true, nil
 }

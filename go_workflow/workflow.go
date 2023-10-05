@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -14,21 +15,38 @@ type MIDIRequest struct {
 }
 
 func GenerateMIDIWorkflow(ctx workflow.Context, input MIDIRequest) (string, error) {
-	activityoptions := workflow.ActivityOptions{
-		StartToCloseTimeout: 10 * time.Second,
-	}
-	ctx = workflow.WithActivityOptions(ctx, activityoptions)
+
 	var midiText string
 	var validated bool = false
 	var validationCount = 0
+	retrypolicy := &temporal.RetryPolicy{
+		InitialInterval:    time.Second,
+		BackoffCoefficient: 2.0,
+		MaximumInterval:    time.Second * 100, // 100 * InitialInterval
+		MaximumAttempts:    3,
+	}
+	activityoptionsPython := workflow.ActivityOptions{
+		StartToCloseTimeout: 10 * time.Second,
+		TaskQueue:           "pyhton-worker",
+		RetryPolicy:         retrypolicy,
+	}
+	activityoptionsTypeScript := workflow.ActivityOptions{
+		StartToCloseTimeout: 10 * time.Second,
+		TaskQueue:           "ts-worker",
+		RetryPolicy:         retrypolicy,
+	}
 	for (!validated) && validationCount < 5 {
 		validationCount++
 		//typescript activity
+
+		ctx = workflow.WithActivityOptions(ctx, activityoptionsTypeScript)
 		midiTextErr := workflow.ExecuteActivity(ctx, "SendMIDITextRequest", input.Prompt).Get(ctx, &midiText)
 		if midiTextErr != nil {
 			return "", midiTextErr
 
 		}
+
+		ctx = workflow.WithActivityOptions(ctx, activityoptionsPython)
 		//Python activity
 		validationErr := workflow.ExecuteActivity(ctx, "ValidateMIDIText", midiText).Get(ctx, &validated)
 		if validationErr != nil {
